@@ -18,14 +18,14 @@ body {
     background: var(--bg);
     color: var(--text);
     font-family: "Inter", system-ui, -apple-system, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .page {
-    width: 1920px;
-    height: 1080px;
+    width: 100%;
+    height: 100%;
     margin: 0;
     padding: 12px;
     display: grid;
@@ -93,6 +93,32 @@ form {
     flex-wrap: wrap;
 }
 
+.upload-form {
+    width: 100%;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.upload-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.upload-controls input[type="file"] {
+    max-width: 520px;
+}
+
+.meta-inline {
+    margin-left: auto;
+    justify-content: flex-end;
+    flex: 1 1 auto;
+    min-width: 320px;
+    margin-top: 0;
+}
+
 label {
     font-weight: 600;
 }
@@ -132,6 +158,30 @@ button:hover {
 #meta {
     margin-top: 4px;
     color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    align-items: baseline;
+}
+
+.meta-item {
+    display: inline-flex;
+    gap: 6px;
+    align-items: baseline;
+    white-space: nowrap;
+}
+
+.meta-item.meta-lines {
+    white-space: normal;
+}
+
+.meta-item strong {
+    color: var(--muted);
+}
+
+.meta-value {
+    color: var(--text);
+    font-weight: 500;
 }
 
 .form-stack {
@@ -173,10 +223,11 @@ button:hover {
 
 .map-layout {
     display: flex;
-    gap: 10px;
+    gap: 0;
     align-items: stretch;
     height: 100%;
-    flex-direction: column;
+    min-width: 0;
+    --table-pane-width: 39%;
 }
 
 .map-wrap {
@@ -184,7 +235,18 @@ button:hover {
     flex: 1 1 auto;
     height: 100%;
     min-height: 0;
-    width: 100%;
+    min-width: 0;
+}
+
+.splitter {
+    flex: 0 0 10px;
+    cursor: col-resize;
+    background: transparent;
+}
+
+body.is-resizing {
+    user-select: none;
+    cursor: col-resize;
 }
 
 #map,
@@ -204,12 +266,13 @@ button:hover {
     background: var(--surface);
     border-radius: 8px;
     border: 1px solid var(--border);
-    height: var(--table-height);
     display: flex;
     flex-direction: column;
-    flex: 0 0 var(--table-height);
-    min-width: 0;
-    width: 100%;
+    flex: 0 0 var(--table-pane-width);
+    width: var(--table-pane-width);
+    min-width: 260px;
+    max-width: 80%;
+    height: 100%;
 }
 
 .table-header {
@@ -419,11 +482,7 @@ thead {
     padding: 6px 8px;
 }
 
-@media (max-width: 1920px), (max-height: 1080px) {
-    body {
-        overflow: auto;
-    }
-}
+/* Layout auto-adapté à la fenêtre (sans scroll). */
 
 .modal-overlay {
     position: fixed;
@@ -450,6 +509,10 @@ thead {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+}
+
+.modal.modal-small {
+    width: min(560px, 100%);
 }
 
 .modal-header {
@@ -491,6 +554,10 @@ thead {
     gap: 10px;
 }
 
+.modal-grid.modal-grid-1 {
+    grid-template-columns: 1fr;
+}
+
 .modal-grid label {
     display: flex;
     flex-direction: column;
@@ -512,6 +579,48 @@ thead {
     display: flex;
     gap: 8px;
     justify-content: flex-end;
+}
+
+.settings-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.settings-title {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 10px;
+    color: var(--text);
+}
+
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+}
+
+.checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text);
+}
+
+.checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+.modal .height-unit {
+    color: var(--muted);
+}
+
+.modal .height-inputs {
+    margin-bottom: 0;
 }
 
 .modal-table {
@@ -563,6 +672,10 @@ thead {
 @media (max-width: 1100px) {
     .modal-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .checkbox-grid {
+        grid-template-columns: 1fr;
     }
 }
 

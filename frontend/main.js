@@ -4,11 +4,23 @@ const statusEl = document.getElementById("status");
 const metaEl = document.getElementById("meta");
 const fileInfoEl = document.getElementById("file-info");
 const mapEl = document.getElementById("map");
+const mapLayoutEl = document.querySelector(".map-layout");
+const mapTableSplitterEl = document.getElementById("map-table-splitter");
 const fallbackCanvas = document.getElementById("fallback-canvas");
 const legendMin = document.getElementById("legend-min");
 const legendMax = document.getElementById("legend-max");
 const pointsTableEl = document.getElementById("points-table");
 const exportBtn = document.getElementById("export-csv");
+const openDisplayModalBtn = document.getElementById("open-display-modal");
+const displayModalEl = document.getElementById("display-modal");
+const displayModalCloseBtn = document.getElementById("display-modal-close");
+const colRangeCheckbox = document.getElementById("col-range");
+const colDipoleCheckbox = document.getElementById("col-dipole");
+const colSatCheckbox = document.getElementById("col-sat");
+const colHdopCheckbox = document.getElementById("col-hdop");
+const openHeightModalBtn = document.getElementById("open-height-modal");
+const heightModalEl = document.getElementById("height-modal");
+const heightModalCloseBtn = document.getElementById("height-modal-close");
 const scaleMinInput = document.getElementById("scale-min");
 const scaleMaxInput = document.getElementById("scale-max");
 const scaleApplyBtn = document.getElementById("scale-apply");
@@ -125,16 +137,15 @@ function rebuildReadingIndex(featureCollection) {
 function updateMeta(payload) {
     const header = payload.header || {};
     const lines = payload.lines || [];
-    const linesInfo = lines
-        .map(
-            (l) =>
-                `${l.line_name || "?"}: ${l.readings} mesures, ${l.gps_points} GPS`
-        )
-        .join("<br>");
+    const totalReadings = lines.reduce((sum, l) => sum + (Number(l.readings) || 0), 0);
+    const totalGps = lines.reduce((sum, l) => sum + (Number(l.gps_points) || 0), 0);
+    const lineNames = lines.map((l) => l.line_name || "?").filter(Boolean);
+    const linesLabel =
+        lineNames.length <= 3 ? lineNames.join(", ") : `${lineNames.length} lignes`;
     metaEl.innerHTML = `
-        <div><strong>Programme:</strong> ${header.program || "?"} ${header.version || ""}</div>
-        <div><strong>Mode:</strong> ${header.survey_type || "?"}</div>
-        <div><strong>Lignes:</strong><br>${linesInfo || "—"}</div>
+        <div class="meta-item meta-lines"><strong>Lignes:</strong> <span class="meta-value">${linesLabel || "—"}</span></div>
+        <div class="meta-item"><strong>Mesures:</strong> <span class="meta-value">${lines.length ? totalReadings : "—"}</span></div>
+        <div class="meta-item"><strong>GPS:</strong> <span class="meta-value">${lines.length ? totalGps : "—"}</span></div>
     `;
 }
 
@@ -218,9 +229,7 @@ function readingPopupHtml(properties) {
         `Cond: ${fmtNum(properties.conductivity, 3)} mS/m`,
         `Épaisseur: ${fmtNum(properties.thickness, 3)} m`,
         `Inphase: ${fmtNum(properties.inphase, 3)} ppt`,
-        `Range: ${properties.range ?? ""}`,
-        `Dipôle: ${properties.dipole_mode ?? ""}`,
-        `GPS: Q${properties.gps_quality || "?"} (${properties.gps_satellites || "?"} sat.)`,
+        `GPS: Q${properties.gps_quality || "?"}`,
     ].join("<br>");
 }
 
@@ -515,10 +524,10 @@ function ensurePointsTable() {
             { title: "Cond (mS/m)", field: "conductivity", hozAlign: "right", sorter: "number", editor: "input", formatter: (cell) => fmtNum(cell.getValue(), 3) },
             { title: "Épaisseur (m)", field: "thickness", hozAlign: "right", sorter: "number", editor: "input", formatter: (cell) => fmtNum(cell.getValue(), 3) },
             { title: "Inphase (ppt)", field: "inphase", hozAlign: "right", sorter: "number", editor: "input", formatter: (cell) => fmtNum(cell.getValue(), 3) },
-            { title: "Range", field: "range", hozAlign: "left", editor: "input" },
-            { title: "Dipôle", field: "dipole_mode", hozAlign: "left", editor: "input" },
-            { title: "Sat", field: "gps_satellites", hozAlign: "right", sorter: "number", editor: "input" },
-            { title: "HDOP", field: "gps_hdop", hozAlign: "right", sorter: "number", editor: "input", formatter: (cell) => fmtNum(cell.getValue(), 2) },
+            { title: "Range", field: "range", hozAlign: "left", editor: "input", visible: false },
+            { title: "Dipôle", field: "dipole_mode", hozAlign: "left", editor: "input", visible: false },
+            { title: "Sat", field: "gps_satellites", hozAlign: "right", sorter: "number", editor: "input", visible: false },
+            { title: "HDOP", field: "gps_hdop", hozAlign: "right", sorter: "number", editor: "input", formatter: (cell) => fmtNum(cell.getValue(), 2), visible: false },
         ],
     });
 
@@ -622,14 +631,6 @@ exportBtn.addEventListener("click", () => {
         "conductivity",
         "thickness",
         "inphase",
-        "range",
-        "dipole_mode",
-        "marker",
-        "station",
-        "gps_quality",
-        "gps_satellites",
-        "gps_hdop",
-        "gps_altitude",
     ];
     const lines = [header.join(",")];
     readings.forEach((f) => {
@@ -643,14 +644,6 @@ exportBtn.addEventListener("click", () => {
                 p.conductivity,
                 p.thickness,
                 p.inphase,
-                p.range,
-                p.dipole_mode,
-                p.marker,
-                p.station,
-                p.gps_quality,
-                p.gps_satellites,
-                p.gps_hdop,
-                p.gps_altitude,
             ]
                 .map((v) => (v === null || v === undefined ? "" : v))
                 .join(",")
@@ -665,11 +658,141 @@ exportBtn.addEventListener("click", () => {
     URL.revokeObjectURL(url);
 });
 
+function setTabulatorColumnVisible(field, visible) {
+    ensurePointsTable();
+    if (!pointsTable) return;
+    const col = pointsTable.getColumn?.(field);
+    if (!col) return;
+    if (visible) col.show?.();
+    else col.hide?.();
+}
+
+function getTabulatorColumnVisible(field) {
+    ensurePointsTable();
+    if (!pointsTable) return false;
+    const col = pointsTable.getColumn?.(field);
+    if (!col) return false;
+    const visible = col.isVisible?.();
+    if (typeof visible === "boolean") return visible;
+    const def = col.getDefinition?.();
+    return def?.visible !== false;
+}
+
+function syncDisplayModalState() {
+    if (colRangeCheckbox) colRangeCheckbox.checked = getTabulatorColumnVisible("range");
+    if (colDipoleCheckbox) colDipoleCheckbox.checked = getTabulatorColumnVisible("dipole_mode");
+    if (colSatCheckbox) colSatCheckbox.checked = getTabulatorColumnVisible("gps_satellites");
+    if (colHdopCheckbox) colHdopCheckbox.checked = getTabulatorColumnVisible("gps_hdop");
+}
+
+function openDisplayModal() {
+    if (!displayModalEl) return;
+    displayModalEl.classList.remove("is-hidden");
+    syncDisplayModalState();
+}
+
+function closeDisplayModal() {
+    displayModalEl?.classList?.add("is-hidden");
+}
+
+function openHeightModal() {
+    if (!heightModalEl) return;
+    heightModalEl.classList.remove("is-hidden");
+    instHeightInput?.focus?.();
+}
+
+function closeHeightModal() {
+    heightModalEl?.classList?.add("is-hidden");
+}
+
+openDisplayModalBtn?.addEventListener("click", openDisplayModal);
+displayModalCloseBtn?.addEventListener("click", closeDisplayModal);
+displayModalEl?.addEventListener("click", (e) => {
+    if (e.target === displayModalEl) closeDisplayModal();
+});
+
+openHeightModalBtn?.addEventListener("click", openHeightModal);
+heightModalCloseBtn?.addEventListener("click", closeHeightModal);
+heightModalEl?.addEventListener("click", (e) => {
+    if (e.target === heightModalEl) closeHeightModal();
+});
+
+colRangeCheckbox?.addEventListener("change", () => setTabulatorColumnVisible("range", !!colRangeCheckbox.checked));
+colDipoleCheckbox?.addEventListener("change", () => setTabulatorColumnVisible("dipole_mode", !!colDipoleCheckbox.checked));
+colSatCheckbox?.addEventListener("change", () => setTabulatorColumnVisible("gps_satellites", !!colSatCheckbox.checked));
+colHdopCheckbox?.addEventListener("change", () => setTabulatorColumnVisible("gps_hdop", !!colHdopCheckbox.checked));
+
+function clampNumber(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
+let pendingPaneResizeFrame = null;
+
+function schedulePaneResizeRefresh() {
+    if (pendingPaneResizeFrame) return;
+    pendingPaneResizeFrame = requestAnimationFrame(() => {
+        pendingPaneResizeFrame = null;
+        if (window.L && map?.invalidateSize) {
+            map.invalidateSize();
+        }
+        pointsTable?.redraw?.(true);
+    });
+}
+
+function setTablePaneWidthPercent(percent) {
+    if (!mapLayoutEl) return;
+    const clamped = clampNumber(percent, 12, 80);
+    mapLayoutEl.style.setProperty("--table-pane-width", `${clamped}%`);
+    try {
+        localStorage.setItem("em31_table_pane_pct", String(clamped));
+    } catch {
+        // ignore
+    }
+    schedulePaneResizeRefresh();
+}
+
+function setupTableSplitter() {
+    if (!mapLayoutEl || !mapTableSplitterEl) return;
+    const stored = Number.parseFloat(localStorage.getItem("em31_table_pane_pct"));
+    if (Number.isFinite(stored)) {
+        setTablePaneWidthPercent(stored);
+    }
+
+    let dragging = false;
+    const onMove = (e) => {
+        if (!dragging) return;
+        const rect = mapLayoutEl.getBoundingClientRect();
+        if (!rect.width) return;
+        const tableWidthPx = rect.right - e.clientX;
+        const pct = (tableWidthPx / rect.width) * 100;
+        setTablePaneWidthPercent(pct);
+        e.preventDefault();
+    };
+    const stop = () => {
+        if (!dragging) return;
+        dragging = false;
+        document.body.classList.remove("is-resizing");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", stop);
+    };
+    mapTableSplitterEl.addEventListener("mousedown", (e) => {
+        dragging = true;
+        document.body.classList.add("is-resizing");
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", stop);
+        e.preventDefault();
+    });
+}
+
+setupTableSplitter();
+
 function updateFileInfo(payload) {
     const header = payload.header || {};
     const name = header.file_name || "inconnu";
     const version = header.version || "?";
-    fileInfoEl.textContent = `Fichier: ${name} · Version: ${version}`;
+    const program = header.program || "?";
+    const mode = header.survey_type || "?";
+    fileInfoEl.textContent = `Fichier: ${name} · Version: ${version} · Programme: ${program} · Mode: ${mode}`;
 }
 
 function setScaleInputs(scale) {
@@ -734,11 +857,13 @@ document.addEventListener("keydown", (e) => {
 instHeightApplyBtn?.addEventListener("click", () => {
     const h = readInstHeightOrDefault();
     applyInstHeight(h);
+    closeHeightModal();
 });
 
 instHeightResetBtn?.addEventListener("click", () => {
     if (instHeightInput) instHeightInput.value = "0.15";
     applyInstHeight(0.15);
+    closeHeightModal();
 });
 
 function ensureDrillingLayer() {
@@ -922,8 +1047,17 @@ drillModalEl?.addEventListener("click", (e) => {
     if (e.target === drillModalEl) closeDrillModal();
 });
 document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !drillModalEl?.classList?.contains("is-hidden")) {
+    if (e.key !== "Escape") return;
+    if (drillModalEl && !drillModalEl.classList.contains("is-hidden")) {
         closeDrillModal();
+        return;
+    }
+    if (heightModalEl && !heightModalEl.classList.contains("is-hidden")) {
+        closeHeightModal();
+        return;
+    }
+    if (displayModalEl && !displayModalEl.classList.contains("is-hidden")) {
+        closeDisplayModal();
     }
 });
 
