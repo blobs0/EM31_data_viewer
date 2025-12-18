@@ -5,12 +5,12 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EM31 – Visualisation</title>
-    <link rel="stylesheet" href="/static/style.css?v=5">
+    <link rel="stylesheet" href="/static/style.css?v=6">
     <link rel="stylesheet" href="/static/vendor/leaflet.css">
     <link rel="stylesheet" href="/static/vendor/tabulator.min.css">
     <script defer src="/static/vendor/leaflet.js"></script>
     <script defer src="/static/vendor/tabulator.min.js"></script>
-    <script defer src="/static/main.js?v=7"></script>
+    <script defer src="/static/main.js?v=8"></script>
 </head>
 <body>
     <div class="page">
@@ -77,7 +77,10 @@
                 <div class="table-wrap">
                     <div class="table-header">
                         <div>Points (GPS + mesures)</div>
-                        <button id="export-csv" type="button">Exporter CSV</button>
+                        <div class="table-actions">
+                            <button id="open-drill-modal" type="button">Points de forage</button>
+                            <button id="export-csv" type="button">Exporter CSV</button>
+                        </div>
                     </div>
                     <div class="table-container">
                         <div id="points-table"></div>
@@ -85,6 +88,54 @@
                 </div>
             </div>
         </section>
+
+        <div id="drill-modal" class="modal-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="drill-modal-title">
+            <div class="modal">
+                <div class="modal-header">
+                    <div class="modal-title">
+                        <h2 id="drill-modal-title">Points de forage</h2>
+                        <div class="modal-subtitle">Ajoute des points mesurés sur le terrain (GPS + épaisseur) et affiche-les sur la carte.</div>
+                    </div>
+                    <button id="drill-modal-close" type="button" class="btn-secondary">Fermer</button>
+                </div>
+
+                <form id="drill-form" class="modal-form">
+                    <div class="modal-grid">
+                        <label>
+                            Latitude
+                            <input id="drill-lat" type="number" step="0.000001" placeholder="-66.123456" required>
+                        </label>
+                        <label>
+                            Longitude
+                            <input id="drill-lon" type="number" step="0.000001" placeholder="140.123456" required>
+                        </label>
+                        <label>
+                            Épaisseur (m)
+                            <input id="drill-thickness" type="number" step="0.01" placeholder="ex: 1.25" required>
+                        </label>
+                    </div>
+                    <div class="modal-actions">
+                        <button id="drill-add" type="submit">Ajouter</button>
+                        <button id="drill-clear" type="button" class="btn-secondary">Vider</button>
+                    </div>
+                </form>
+
+                <div class="modal-table">
+                    <table class="compact-table">
+                        <thead>
+                            <tr>
+                                <th>Lat</th>
+                                <th>Lon</th>
+                                <th>Épaisseur (m)</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drill-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <footer class="footer">
             <span>made with ❤️ by Valentin Guerdin - TA 76 🐧</span>
         </footer>

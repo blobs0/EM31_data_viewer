@@ -16,6 +16,15 @@ const scaleResetBtn = document.getElementById("scale-reset");
 const instHeightInput = document.getElementById("inst-height");
 const instHeightApplyBtn = document.getElementById("inst-height-apply");
 const instHeightResetBtn = document.getElementById("inst-height-reset");
+const openDrillModalBtn = document.getElementById("open-drill-modal");
+const drillModalEl = document.getElementById("drill-modal");
+const drillModalCloseBtn = document.getElementById("drill-modal-close");
+const drillForm = document.getElementById("drill-form");
+const drillLatInput = document.getElementById("drill-lat");
+const drillLonInput = document.getElementById("drill-lon");
+const drillThicknessInput = document.getElementById("drill-thickness");
+const drillClearBtn = document.getElementById("drill-clear");
+const drillListEl = document.getElementById("drill-list");
 
 let map;
 let dataLayer;
@@ -32,6 +41,10 @@ let readingsById = new Map();
 let selectedRowId = null;
 let markerByRowId = new Map();
 let tableSyncLock = false;
+let drillingPoints = [];
+let drillingLayer = null;
+let drillingMarkerById = new Map();
+let nextDrillingId = 1;
 
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -155,6 +168,7 @@ function renderLeaflet(featureCollection, scale, { fitBounds } = {}) {
         });
         tileLayer.addTo(map);
     }
+    ensureDrillingLayer();
     if (dataLayer) {
         dataLayer.remove();
     }
@@ -299,6 +313,7 @@ function renderFallback(featureCollection, scale) {
             ctx.arc(x, y, 4, 0, Math.PI * 2);
             ctx.fill();
         });
+    drawDrillingPointsFallback(ctx, project);
     updateLegend(condStats);
 }
 
@@ -724,6 +739,222 @@ instHeightApplyBtn?.addEventListener("click", () => {
 instHeightResetBtn?.addEventListener("click", () => {
     if (instHeightInput) instHeightInput.value = "0.15";
     applyInstHeight(0.15);
+});
+
+function ensureDrillingLayer() {
+    if (!window.L || !map) return;
+    if (drillingLayer) return;
+    drillingLayer = L.layerGroup();
+    drillingLayer.addTo(map);
+    renderAllDrillingMarkers();
+}
+
+function drillPointPopupHtml(point) {
+    return [
+        `<strong>${escapeHtml(point.id)}</strong>`,
+        `Épaisseur: ${fmtNum(point.thickness, 2)} m`,
+        `GPS: ${fmtNum(point.lat, 6)}, ${fmtNum(point.lon, 6)}`,
+    ].join("<br>");
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+function makeDrillMarker(lat, lon) {
+    if (!window.L || !map) return null;
+    const icon = L.divIcon({
+        className: "drill-marker",
+        html: '<div class="drill-marker-inner"></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+    });
+    return L.marker([lat, lon], { icon, keyboard: true });
+}
+
+function renderAllDrillingMarkers() {
+    if (!window.L || !map || !drillingLayer) return;
+    drillingLayer.clearLayers?.();
+    drillingMarkerById = new Map();
+    drillingPoints.forEach((point) => {
+        const marker = makeDrillMarker(point.lat, point.lon);
+        if (!marker) return;
+        marker.bindPopup(drillPointPopupHtml(point));
+        marker.on("click", () => marker.openPopup?.());
+        marker.addTo(drillingLayer);
+        drillingMarkerById.set(point.id, marker);
+    });
+}
+
+function addDrillingPoint(point) {
+    drillingPoints.push(point);
+    if (window.L && map) {
+        ensureDrillingLayer();
+        const marker = makeDrillMarker(point.lat, point.lon);
+        if (marker) {
+            marker.bindPopup(drillPointPopupHtml(point));
+            marker.addTo(drillingLayer);
+            drillingMarkerById.set(point.id, marker);
+            marker.openPopup?.();
+        }
+    }
+    renderDrillingList();
+}
+
+function removeDrillingPointById(id) {
+    drillingPoints = drillingPoints.filter((p) => p.id !== id);
+    drillingMarkerById.get(id)?.remove?.();
+    drillingMarkerById.delete(id);
+    renderDrillingList();
+}
+
+function clearDrillingPoints() {
+    drillingPoints = [];
+    drillingMarkerById.forEach((marker) => marker?.remove?.());
+    drillingMarkerById = new Map();
+    drillingLayer?.clearLayers?.();
+    renderDrillingList();
+}
+
+function zoomToDrillPoint(id) {
+    const point = drillingPoints.find((p) => p.id === id);
+    if (!point) return;
+    if (window.L && map) {
+        map.setView([point.lat, point.lon], Math.max(map.getZoom?.() || 0, 16), { animate: true });
+        const marker = drillingMarkerById.get(id);
+        marker?.openPopup?.();
+    }
+}
+
+function renderDrillingList() {
+    if (!drillListEl) return;
+    drillListEl.innerHTML = "";
+    drillingPoints.forEach((point) => {
+        const tr = document.createElement("tr");
+        const latTd = document.createElement("td");
+        latTd.textContent = fmtNum(point.lat, 6);
+        const lonTd = document.createElement("td");
+        lonTd.textContent = fmtNum(point.lon, 6);
+        const thickTd = document.createElement("td");
+        thickTd.textContent = fmtNum(point.thickness, 2);
+        const actionsTd = document.createElement("td");
+        const actions = document.createElement("div");
+        actions.className = "row-actions";
+        const zoomBtn = document.createElement("button");
+        zoomBtn.type = "button";
+        zoomBtn.className = "btn-secondary";
+        zoomBtn.textContent = "Zoom";
+        zoomBtn.addEventListener("click", () => zoomToDrillPoint(point.id));
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn-secondary";
+        delBtn.textContent = "Supprimer";
+        delBtn.addEventListener("click", () => removeDrillingPointById(point.id));
+        actions.appendChild(zoomBtn);
+        actions.appendChild(delBtn);
+        actionsTd.appendChild(actions);
+
+        tr.appendChild(latTd);
+        tr.appendChild(lonTd);
+        tr.appendChild(thickTd);
+        tr.appendChild(actionsTd);
+        drillListEl.appendChild(tr);
+    });
+}
+
+function openDrillModal() {
+    if (!drillModalEl) return;
+    drillModalEl.classList.remove("is-hidden");
+    renderDrillingList();
+    drillLatInput?.focus?.();
+}
+
+function closeDrillModal() {
+    drillModalEl?.classList?.add("is-hidden");
+}
+
+function readRequiredNumber(inputEl, label, { min = null, max = null } = {}) {
+    const value = parseNullableNumber(inputEl?.value);
+    if (typeof value !== "number") {
+        alert(`${label} invalide.`);
+        inputEl?.focus?.();
+        return null;
+    }
+    if (min !== null && value < min) {
+        alert(`${label} invalide (>= ${min}).`);
+        inputEl?.focus?.();
+        return null;
+    }
+    if (max !== null && value > max) {
+        alert(`${label} invalide (<= ${max}).`);
+        inputEl?.focus?.();
+        return null;
+    }
+    return value;
+}
+
+function drawDrillingPointsFallback(ctx, project) {
+    if (!ctx || !project || !drillingPoints.length) return;
+    drillingPoints.forEach((p) => {
+        const [x, y] = project([p.lon, p.lat]);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = "#f59e0b";
+        ctx.strokeStyle = "#111827";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.rect(-6, -6, 12, 12);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    });
+}
+
+openDrillModalBtn?.addEventListener("click", () => openDrillModal());
+drillModalCloseBtn?.addEventListener("click", () => closeDrillModal());
+drillModalEl?.addEventListener("click", (e) => {
+    if (e.target === drillModalEl) closeDrillModal();
+});
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !drillModalEl?.classList?.contains("is-hidden")) {
+        closeDrillModal();
+    }
+});
+
+drillClearBtn?.addEventListener("click", () => {
+    if (!drillingPoints.length) return;
+    if (!confirm("Vider tous les points de forage ?")) return;
+    clearDrillingPoints();
+});
+
+drillForm?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const lat = readRequiredNumber(drillLatInput, "Latitude", { min: -90, max: 90 });
+    if (lat === null) return;
+    const lon = readRequiredNumber(drillLonInput, "Longitude", { min: -180, max: 180 });
+    if (lon === null) return;
+    const thickness = readRequiredNumber(drillThicknessInput, "Épaisseur", { min: 0 });
+    if (thickness === null) return;
+
+    const point = {
+        id: `pf${nextDrillingId++}`,
+        lat,
+        lon,
+        thickness,
+        createdAt: Date.now(),
+    };
+    addDrillingPoint(point);
+
+    if (drillLatInput) drillLatInput.value = "";
+    if (drillLonInput) drillLonInput.value = "";
+    if (drillThicknessInput) drillThicknessInput.value = "";
+    drillLatInput?.focus?.();
 });
 
 // Layout is fixed via CSS (no splitters / no dynamic resizing).

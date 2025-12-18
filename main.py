@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # -----------------------------------------------------------
 
 OUTPUT_ROOT = "tiles"         # dossier racine des tuiles
-MAX_WORKERS = 20               # nb de threads (8 est un bon début)
+MAX_WORKERS = 60               # nb de threads (8 est un bon début)
 REQUEST_TIMEOUT = 30          # timeout en secondes pour chaque requête HTTP
 
 # User-Agent "déguisé" en Firefox
@@ -36,9 +36,9 @@ def lat2tile_y(lat, z):
 # ZONE A TELECHARGER (petite bbox)
 # -----------------------------------------------------------
 
-minlat, maxlat = -66.67835, -66.64870
-minlon, maxlon = 139.93118, 140.06593
-min_zoom, max_zoom = 15, 20   # zooms fins (attention au nombre de tuiles)
+minlat, maxlat = -66.69549, -66.66505
+minlon, maxlon = 139.89106, 140.02582
+min_zoom, max_zoom = 1, 18   # zooms fins (attention au nombre de tuiles)
 
 # -----------------------------------------------------------
 # URL OSM

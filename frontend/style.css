@@ -220,6 +220,20 @@ button:hover {
     font-weight: 600;
 }
 
+.table-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn-secondary {
+    background: #475569;
+}
+
+.btn-secondary:hover {
+    opacity: 0.9;
+}
+
 .table-container {
     overflow: hidden;
     flex: 1;
@@ -408,5 +422,152 @@ thead {
 @media (max-width: 1920px), (max-height: 1080px) {
     body {
         overflow: auto;
+    }
+}
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.6);
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.modal-overlay.is-hidden {
+    display: none;
+}
+
+.modal {
+    width: min(1100px, 100%);
+    max-height: min(820px, 100%);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 14px 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(15, 23, 42, 0.92);
+    color: #fff;
+}
+
+.modal-title h2 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.modal-subtitle {
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.modal-form {
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+    flex-wrap: nowrap;
+}
+
+.modal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.modal-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text);
+}
+
+.modal-grid input {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.modal-table {
+    padding: 0 14px 14px 14px;
+    overflow: auto;
+    flex: 1;
+    background: var(--panel);
+}
+
+.compact-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.compact-table th,
+.compact-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.row-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.row-actions button {
+    padding: 6px 8px;
+    border-radius: 6px;
+}
+
+.drill-marker {
+    background: transparent;
+    border: none;
+}
+
+.drill-marker-inner {
+    width: 14px;
+    height: 14px;
+    background: #f59e0b;
+    border: 2px solid #111827;
+    transform: rotate(45deg);
+    border-radius: 2px;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+}
+
+@media (max-width: 1100px) {
+    .modal-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .modal-grid {
+        grid-template-columns: 1fr;
     }
 }
