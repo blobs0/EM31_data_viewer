@@ -117,7 +117,7 @@ def run():
     import uvicorn
     import os
 
-    port = int(os.environ.get("BACKEND_PORT", "8000"))
+    port = int(os.environ.get("BACKEND_PORT", "80"))
     host = os.environ.get("BACKEND_HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port, reload=False)
 
