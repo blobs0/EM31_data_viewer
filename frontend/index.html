@@ -5,10 +5,12 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EM31 – Visualisation</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=5">
     <link rel="stylesheet" href="/static/vendor/leaflet.css">
+    <link rel="stylesheet" href="/static/vendor/tabulator.min.css">
     <script defer src="/static/vendor/leaflet.js"></script>
-    <script defer src="/static/main.js"></script>
+    <script defer src="/static/vendor/tabulator.min.js"></script>
+    <script defer src="/static/main.js?v=7"></script>
 </head>
 <body>
     <div class="page">
@@ -37,6 +39,17 @@
                         <button id="scale-reset" type="button">Auto</button>
                     </div>
                 </div>
+                <div class="scale-card" id="height-controls">
+                    <div class="scale-title">Hauteur de l'EM31</div>
+                    <div class="height-inputs">
+                        <input type="number" step="0.01" min="0" id="inst-height" value="0.15">
+                        <span class="height-unit">m</span>
+                    </div>
+                    <div class="scale-actions">
+                        <button id="inst-height-apply" type="button">Appliquer</button>
+                        <button id="inst-height-reset" type="button">0,15</button>
+                    </div>
+                </div>
                 <div class="form-stack">
                     <form id="upload-form">
                         <label for="file-input">Fichier .R31</label>
@@ -49,7 +62,6 @@
             </div>
         </section>
 
-        <div class="h-splitter" id="height-splitter" title="Glisser pour ajuster la hauteur"></div>
         <section class="panel map-panel">
             <div class="map-layout">
                 <div class="map-wrap">
@@ -62,30 +74,13 @@
                         <span class="legend-label" id="legend-max"></span>
                     </div>
                 </div>
-                <div class="splitter" id="layout-splitter" title="Glisser pour ajuster"></div>
                 <div class="table-wrap">
                     <div class="table-header">
                         <div>Points (GPS + mesures)</div>
                         <button id="export-csv" type="button">Exporter CSV</button>
                     </div>
                     <div class="table-container">
-                        <table id="points-table">
-                            <thead>
-                                <tr>
-                                    <th>Temps (ms)</th>
-                                    <th>Lat</th>
-                                    <th>Lon</th>
-                                    <th>Cond (mS/m)</th>
-                                    <th>Épaisseur (m)</th>
-                                    <th>Inphase (ppt)</th>
-                                    <th>Range</th>
-                                    <th>Dipôle</th>
-                                    <th>Sat</th>
-                                    <th>HDOP</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+                        <div id="points-table"></div>
                     </div>
                 </div>
             </div>

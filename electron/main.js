@@ -128,8 +128,10 @@ function stopBackend() {
 
 async function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 900,
+        width: 1920,
+        height: 1080,
+        resizable: false,
+        autoHideMenuBar: true,
         show: false,
         webPreferences: {
             contextIsolation: true,

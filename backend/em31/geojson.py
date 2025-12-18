@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 from .models import GPSPoint, LineRecord, Reading
-from .parser_em31 import match_readings_to_gps
-from .pyem31_adapter import compute_thickness
+from .parser import match_readings_to_gps
+from .thickness_adapter import compute_thickness
 
 
 def compute_bounds(coords: List[Tuple[float, float]]) -> Optional[List[float]]:

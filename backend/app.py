@@ -29,8 +29,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.geojson_export import build_feature_collection
-from backend.parser_em31 import parse_em31_file
+from backend.em31.geojson import build_feature_collection
+from backend.em31.parser import parse_em31_file
 
 
 def get_base_dir():

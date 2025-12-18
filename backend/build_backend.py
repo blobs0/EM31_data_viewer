@@ -1,6 +1,6 @@
 """
 Build a standalone backend executable with PyInstaller.
-Includes frontend assets, tiles and pyEM31 sources so the Electron app can run without a local Python install.
+Includes frontend assets and tiles so the Electron app can run without a local Python install.
 """
 import os
 import subprocess
@@ -31,7 +31,6 @@ def build():
     add_data = [
         f"{PROJECT_ROOT / 'frontend'}{sep}frontend",
         f"{PROJECT_ROOT / 'tiles'}{sep}tiles",
-        f"{PROJECT_ROOT / 'pyEM31-main'}{sep}pyEM31-main",
     ]
 
     DIST_DIR.mkdir(exist_ok=True)

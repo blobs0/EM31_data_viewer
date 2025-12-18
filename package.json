@@ -19,7 +19,6 @@
       "electron/**/*",
       "backend/**/*",
       "frontend/**/*",
-      "pyEM31-main/**/*",
       "tiles/**/*",
       "package.json"
     ],

@@ -5,7 +5,7 @@ a = Analysis(
     ['/home/ministrum/Documents/Projet-EM31/backend/app.py'],
     pathex=[],
     binaries=[],
-    datas=[('/home/ministrum/Documents/Projet-EM31/frontend', 'frontend'), ('/home/ministrum/Documents/Projet-EM31/tiles', 'tiles'), ('/home/ministrum/Documents/Projet-EM31/pyEM31-main', 'pyEM31-main')],
+    datas=[('/home/ministrum/Documents/Projet-EM31/frontend', 'frontend'), ('/home/ministrum/Documents/Projet-EM31/tiles', 'tiles')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

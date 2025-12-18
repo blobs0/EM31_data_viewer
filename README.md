@@ -10,7 +10,7 @@ Application de visualisation EM31 (frontend statique + backend FastAPI) empaquet
 
 ## Installation
 1. Installer les paquets Node : `npm install`
-2. Vérifier que les dossiers nécessaires sont présents : `frontend/`, `backend/`, `pyEM31-main/`, `tiles/`.
+2. Vérifier que les dossiers nécessaires sont présents : `frontend/`, `backend/`, `tiles/`.
 
 ## Lancer en dev
 - Important : si `ELECTRON_RUN_AS_NODE=1` est défini dans ton environnement, Electron se lance en mode Node et l'app plante. Le script `npm start` le désactive automatiquement.
@@ -23,14 +23,14 @@ Application de visualisation EM31 (frontend statique + backend FastAPI) empaquet
 ## Build Electron
 - `npm run pack` : build sans installeur (dossier dans `dist/`)
 - `npm run dist` : build avec installeur (Linux: `deb`/`tar.gz`/`zip` + option `AppImage`, Windows: NSIS). Appelle automatiquement PyInstaller pour packager le backend avant Electron Builder.
-- Le binaire backend et les ressources frontend/tiles/pyEM31 sont inclus, donc pas besoin de Python sur la machine cible.
+- Le binaire backend et les ressources frontend/tiles sont inclus, donc pas besoin de Python sur la machine cible.
 
 ## Backend seul
 - `BACKEND_PORT=8000 uvicorn backend.app:app --reload` sert l'API et le frontend (URL par défaut : `http://127.0.0.1:8000`).
 
 
 ## Build backend seul (PyInstaller)
-- `python backend/build_backend.py` génère `backend/dist/em31-backend[.exe]` incluant frontend, tiles et pyEM31.
+- `python backend/build_backend.py` génère `backend/dist/em31-backend[.exe]` incluant frontend et tiles.
 - Ce binaire est embarqué automatiquement dans `npm run pack` / `npm run dist`.
 - Compile sur chaque OS cible pour obtenir un binaire natif (Windows depuis Windows, Linux depuis Linux).
 
