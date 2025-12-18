@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EM31 – Visualisation</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/vendor/leaflet.css">
+    <script defer src="/static/vendor/leaflet.js"></script>
+    <script defer src="/static/main.js"></script>
+</head>
+<body>
+    <div class="page">
+        <header class="topbar">
+            <div class="brand">
+                <div class="logo-frame">
+                    <img class="logo-image" src="/static/images/ipev.png" alt="Logo IPEV">
+                </div>
+                <div class="title-block">
+                    <h1>Cartographie d'épaisseur de glace – EM31</h1>
+                    <p id="file-info">Aucun fichier chargé</p>
+                </div>
+            </div>
+        </header>
+
+        <section class="panel upload-panel">
+            <div class="upload-row">
+                <div class="scale-card" id="scale-controls">
+                    <div class="scale-title">Échelle conductivité</div>
+                    <div class="scale-inputs">
+                        <input type="number" step="0.1" id="scale-min" placeholder="min">
+                        <input type="number" step="0.1" id="scale-max" placeholder="max">
+                    </div>
+                    <div class="scale-actions">
+                        <button id="scale-apply" type="button">Appliquer</button>
+                        <button id="scale-reset" type="button">Auto</button>
+                    </div>
+                </div>
+                <div class="form-stack">
+                    <form id="upload-form">
+                        <label for="file-input">Fichier .R31</label>
+                        <input id="file-input" name="file" type="file" accept=".R31,.r31,.txt" required>
+                        <button type="submit">Charger</button>
+                        <span id="status"></span>
+                    </form>
+                    <div id="meta"></div>
+                </div>
+            </div>
+        </section>
+
+        <div class="h-splitter" id="height-splitter" title="Glisser pour ajuster la hauteur"></div>
+        <section class="panel map-panel">
+            <div class="map-layout">
+                <div class="map-wrap">
+                    <div id="map"></div>
+                    <canvas id="fallback-canvas"></canvas>
+                    <div id="legend">
+                        <span>Conductivité</span>
+                        <div class="gradient"></div>
+                        <span class="legend-label" id="legend-min"></span>
+                        <span class="legend-label" id="legend-max"></span>
+                    </div>
+                </div>
+                <div class="splitter" id="layout-splitter" title="Glisser pour ajuster"></div>
+                <div class="table-wrap">
+                    <div class="table-header">
+                        <div>Points (GPS + mesures)</div>
+                        <button id="export-csv" type="button">Exporter CSV</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="points-table">
+                            <thead>
+                                <tr>
+                                    <th>Temps (ms)</th>
+                                    <th>Lat</th>
+                                    <th>Lon</th>
+                                    <th>Cond (mS/m)</th>
+                                    <th>Épaisseur (m)</th>
+                                    <th>Inphase (ppt)</th>
+                                    <th>Range</th>
+                                    <th>Dipôle</th>
+                                    <th>Sat</th>
+                                    <th>HDOP</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <footer class="footer">
+            <span>made with ❤️ by Valentin Guerdin - TA 76 🐧</span>
+        </footer>
+    </div>
+</body>
+</html>

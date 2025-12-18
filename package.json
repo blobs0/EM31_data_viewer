@@ -1,0 +1,64 @@
+{
+  "name": "em31-electron",
+  "version": "0.1.0",
+  "description": "Visualisation EM31 (FastAPI + frontend) empaquetee avec Electron.",
+  "main": "electron/main.js",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "pack": "npm run build:backend && electron-builder --dir",
+    "dist": "npm run build:backend && electron-builder",
+    "start:node": "ELECTRON_RUN_AS_NODE=1 node .",
+    "build:backend": "${PYTHON_PATH:-python3} backend/build_backend.py"
+  },
+  "build": {
+    "appId": "fr.ipev.em31",
+    "productName": "EM31 Visualisation",
+    "asar": false,
+    "files": [
+      "electron/**/*",
+      "backend/**/*",
+      "frontend/**/*",
+      "pyEM31-main/**/*",
+      "tiles/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "electron/resources"
+    },
+    "linux": {
+      "target": [
+        "deb",
+        "tar.gz",
+        "zip",
+        "AppImage"
+      ],
+      "category": "Utility"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    },
+    "extraResources": [
+      {
+        "from": "backend/dist",
+        "to": "backend-dist",
+        "filter": [
+          "em31-backend*",
+          "em31-backend.exe"
+        ]
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^30.0.8",
+    "electron-builder": "^24.13.3"
+  }
+}
