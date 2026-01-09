@@ -31,6 +31,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.em31.geojson import build_feature_collection
 from backend.em31.parser import parse_em31_file
+from backend.em31.thickness import COEFF_PRESETS
 
 
 def get_base_dir():
@@ -73,7 +74,15 @@ async def root():
 
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...), max_delta_ms: int = 1000, inst_height: float = 0.15):
+async def upload_file(
+    file: UploadFile = File(...),
+    max_delta_ms: int = 1000,
+    inst_height: float = 0.15,
+    coeff_profile: str = "winter",
+    coeff_a: typing.Optional[float] = None,
+    coeff_b: typing.Optional[float] = None,
+    coeff_c: typing.Optional[float] = None,
+):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
     suffix = Path(file.filename).suffix.lower()
@@ -82,12 +91,25 @@ async def upload_file(file: UploadFile = File(...), max_delta_ms: int = 1000, in
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = Path(tmp.name)
+    coeff_key = (coeff_profile or "winter").strip().lower()
+    if coeff_key == "custom":
+        if coeff_a is None or coeff_b is None or coeff_c is None:
+            raise HTTPException(status_code=400, detail="Custom coefficients require coeff_a, coeff_b, coeff_c.")
+        if coeff_a <= 0 or coeff_c <= 0:
+            raise HTTPException(status_code=400, detail="Custom coefficients require coeff_a > 0 and coeff_c > 0.")
+        coeffs = [coeff_a, coeff_b, coeff_c]
+    else:
+        coeffs = COEFF_PRESETS.get(coeff_key)
+        if not coeffs:
+            raise HTTPException(status_code=400, detail="Unknown coeff_profile.")
+
     try:
         parsed = parse_em31_file(tmp_path)
         geojson = build_feature_collection(
             parsed["lines"],
             max_delta_ms=max_delta_ms,
             inst_height=inst_height,
+            coeffs=coeffs,
         )
         header_dict = asdict(parsed["header"])
         lines_meta = []
@@ -117,7 +139,7 @@ def run():
     import uvicorn
     import os
 
-    port = int(os.environ.get("BACKEND_PORT", "80"))
+    port = int(os.environ.get("BACKEND_PORT", "8000"))
     host = os.environ.get("BACKEND_HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port, reload=False)
 

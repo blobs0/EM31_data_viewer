@@ -19,13 +19,18 @@ def build_feature_collection(
     lines: List[LineRecord],
     max_delta_ms: int = 1000,
     inst_height: float = 0.15,
+    coeffs: Optional[List[float]] = None,
 ) -> Dict[str, object]:
     features: List[Dict[str, object]] = []
     all_coords: List[Tuple[float, float]] = []
     for line in lines:
         matched = match_readings_to_gps(line.readings, line.gps_points, max_delta_ms=max_delta_ms)
         cond_values = [reading.conductivity for reading, _ in matched]
-        thickness_values = compute_thickness(cond_values, inst_height=inst_height)
+        thickness_values = compute_thickness(
+            cond_values,
+            inst_height=inst_height,
+            coeffs=coeffs,
+        )
         thickness_iter = iter(thickness_values)
         for reading, gps in matched:
             coords = [gps.lon, gps.lat]

@@ -7,8 +7,16 @@ Only the minimal thickness retrieval is kept here.
 
 import numpy as np
 
-# Retrieval coefficients (Haas et al.)
+# Retrieval coefficients.
 HAAS_2010 = [0.98229, 13.404, 1366.4]
+WINTER_COEFFS = [0.995, 95.8, 1095.5]
+SUMMER_COEFFS = [0.9, 57.2, 1270.9]
+
+COEFF_PRESETS = {
+    "winter": WINTER_COEFFS,
+    "summer": SUMMER_COEFFS,
+    "haas2010": HAAS_2010,
+}
 
 
 def thickness(em31_df, inst_height, coeffs=HAAS_2010):
@@ -27,4 +35,3 @@ def thickness(em31_df, inst_height, coeffs=HAAS_2010):
     em31_df["ttem"] = -1 / coeffs[0] * np.log(mod_app_cond)
     em31_df["ttem"] -= inst_height
     return em31_df
-

@@ -5,12 +5,12 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EM31 – Visualisation</title>
-    <link rel="stylesheet" href="/static/style.css?v=8">
+    <link rel="stylesheet" href="/static/style.css?v=9">
     <link rel="stylesheet" href="/static/vendor/leaflet.css">
     <link rel="stylesheet" href="/static/vendor/tabulator.min.css">
     <script defer src="/static/vendor/leaflet.js"></script>
     <script defer src="/static/vendor/tabulator.min.js"></script>
-    <script defer src="/static/main.js?v=11"></script>
+    <script defer src="/static/main.js?v=12"></script>
 </head>
 <body>
     <div class="page">
@@ -47,12 +47,20 @@
                 <div class="map-wrap">
                     <div id="map"></div>
                     <canvas id="fallback-canvas"></canvas>
-	                    <div id="legend">
-	                        <span>Conductivité</span>
-	                        <div class="gradient"></div>
-	                        <span class="legend-label" id="legend-min"></span>
-	                        <span class="legend-label" id="legend-max"></span>
-	                    </div>
+                    <div class="map-controls">
+                        <button id="measure-toggle" type="button" class="map-icon-btn" title="Règle : mesurer une distance" aria-label="Règle : mesurer une distance">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <rect x="3" y="6" width="18" height="12" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
+                                <path d="M7 10v2M10 10v4M13 10v2M16 10v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                            </svg>
+                        </button>
+                        <div id="legend">
+                            <span>Conductivité</span>
+                            <div class="gradient"></div>
+                            <span class="legend-label" id="legend-min"></span>
+                            <span class="legend-label" id="legend-max"></span>
+                        </div>
+                    </div>
 	                </div>
 	                <div id="map-table-splitter" class="splitter" aria-hidden="true"></div>
 	                <div class="table-wrap">
@@ -60,7 +68,7 @@
 	                        <div>Points (GPS + mesures)</div>
                         <div class="table-actions">
                             <button id="open-display-modal" type="button" class="btn-secondary">Affichage</button>
-                            <button id="open-height-modal" type="button" class="btn-secondary">Hauteur EM31</button>
+                            <button id="open-height-modal" type="button" class="btn-secondary">Config EM31</button>
                             <button id="open-drill-modal" type="button">Points de forage</button>
                             <button id="export-csv" type="button">Exporter CSV</button>
                         </div>
@@ -124,14 +132,14 @@
 	            <div class="modal modal-small">
 	                <div class="modal-header">
 	                    <div class="modal-title">
-	                        <h2 id="height-modal-title">Hauteur EM31</h2>
-	                        <div class="modal-subtitle">Hauteur de l’appareil au-dessus de la surface (m).</div>
+	                        <h2 id="height-modal-title">Config EM31</h2>
+	                        <div class="modal-subtitle">Hauteur de l’appareil et coefficients d’estimation.</div>
 	                    </div>
 	                    <button id="height-modal-close" type="button" class="btn-secondary">Fermer</button>
 	                </div>
 
 	                <div class="modal-form">
-	                    <div class="modal-grid modal-grid-1">
+	                    <div class="modal-grid modal-grid-2">
 	                        <label>
 	                            Hauteur (m)
 	                            <div class="height-inputs">
@@ -139,10 +147,32 @@
 	                                <span class="height-unit">m</span>
 	                            </div>
 	                        </label>
+	                        <label>
+	                            Coefficients
+	                            <select id="coeff-profile">
+	                                <option value="winter">Hiver</option>
+	                                <option value="summer">Été</option>
+	                                <option value="custom">Personnalisé</option>
+	                            </select>
+	                        </label>
+	                    </div>
+	                    <div class="modal-grid coeff-grid">
+	                        <label>
+	                            Coeff a
+	                            <input id="coeff-a" type="text" inputmode="decimal" placeholder="0.995">
+	                        </label>
+	                        <label>
+	                            Coeff b
+	                            <input id="coeff-b" type="text" inputmode="decimal" placeholder="95.8">
+	                        </label>
+	                        <label>
+	                            Coeff c
+	                            <input id="coeff-c" type="text" inputmode="decimal" placeholder="1095.5">
+	                        </label>
 	                    </div>
 	                    <div class="modal-actions">
 	                        <button id="inst-height-apply" type="button">Appliquer</button>
-	                        <button id="inst-height-reset" type="button" class="btn-secondary">0,15</button>
+	                        <button id="inst-height-reset" type="button" class="btn-secondary">Défaut</button>
 	                    </div>
 	                </div>
 	            </div>
@@ -160,13 +190,21 @@
 
                 <form id="drill-form" class="modal-form">
                     <div class="modal-grid">
+                        <label class="grid-span">
+                            Format des coordonnées
+                            <select id="drill-format">
+                                <option value="decimal">Degrés décimaux (DD)</option>
+                                <option value="ddm">Degrés minutes décimales (DDM)</option>
+                                <option value="dms">Degrés minutes secondes (DMS)</option>
+                            </select>
+                        </label>
                         <label>
                             Latitude
-                            <input id="drill-lat" type="number" step="0.000001" placeholder="-66.123456" required>
+                            <input id="drill-lat" type="text" inputmode="decimal" placeholder="-66.123456" required>
                         </label>
                         <label>
                             Longitude
-                            <input id="drill-lon" type="number" step="0.000001" placeholder="140.123456" required>
+                            <input id="drill-lon" type="text" inputmode="decimal" placeholder="140.123456" required>
                         </label>
                         <label>
                             Épaisseur (m)

@@ -28,15 +28,21 @@ const scaleResetBtn = document.getElementById("scale-reset");
 const instHeightInput = document.getElementById("inst-height");
 const instHeightApplyBtn = document.getElementById("inst-height-apply");
 const instHeightResetBtn = document.getElementById("inst-height-reset");
+const coeffProfileSelect = document.getElementById("coeff-profile");
+const coeffAInput = document.getElementById("coeff-a");
+const coeffBInput = document.getElementById("coeff-b");
+const coeffCInput = document.getElementById("coeff-c");
 const openDrillModalBtn = document.getElementById("open-drill-modal");
 const drillModalEl = document.getElementById("drill-modal");
 const drillModalCloseBtn = document.getElementById("drill-modal-close");
 const drillForm = document.getElementById("drill-form");
+const drillFormatSelect = document.getElementById("drill-format");
 const drillLatInput = document.getElementById("drill-lat");
 const drillLonInput = document.getElementById("drill-lon");
 const drillThicknessInput = document.getElementById("drill-thickness");
 const drillClearBtn = document.getElementById("drill-clear");
 const drillListEl = document.getElementById("drill-list");
+const measureToggleBtn = document.getElementById("measure-toggle");
 
 let map;
 let dataLayer;
@@ -46,6 +52,8 @@ let autoScale = null;
 let manualScale = null;
 let lastGeojson = null;
 let currentInstHeight = 0.15;
+let currentCoeffs = null;
+let customCoeffs = null;
 let nextRowId = 1;
 let pointsTable = null;
 let pointsTableReady = null;
@@ -57,6 +65,49 @@ let drillingPoints = [];
 let drillingLayer = null;
 let drillingMarkerById = new Map();
 let nextDrillingId = 1;
+let measureLayer = null;
+let measureActive = false;
+let measureStart = null;
+let measureEnd = null;
+let measureLine = null;
+let measureLabel = null;
+let measureMarkers = [];
+let measureHandlersBound = false;
+let measureToggleBound = false;
+
+const DRILL_FORMATS = {
+    decimal: {
+        label: "degrés décimaux",
+        latPlaceholder: "-66.123456",
+        lonPlaceholder: "140.123456",
+        inputMode: "decimal",
+    },
+    ddm: {
+        label: "degrés minutes décimales",
+        latPlaceholder: "66 12.345 S",
+        lonPlaceholder: "140 12.345 E",
+        inputMode: "text",
+    },
+    dms: {
+        label: "degrés minutes secondes",
+        latPlaceholder: "66 12 34.5 S",
+        lonPlaceholder: "140 12 34.5 E",
+        inputMode: "text",
+    },
+};
+
+const EM31_COEFF_PRESETS = {
+    winter: {
+        label: "Hiver",
+        coeffs: [0.995, 95.8, 1095.5],
+    },
+    summer: {
+        label: "Été",
+        coeffs: [0.9, 57.2, 1270.9],
+    },
+};
+
+const DEFAULT_COEFF_PROFILE = "winter";
 
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -67,9 +118,25 @@ form.addEventListener("submit", async (e) => {
     fd.append("file", file);
     try {
         const instHeight = readInstHeightOrDefault();
+        const coeffSelection = readCoeffSelection();
+        if (!coeffSelection) {
+            statusEl.textContent = "Erreur: coefficients invalides.";
+            return;
+        }
+        const { profile, coeffs } = coeffSelection;
         currentInstHeight = instHeight;
+        currentCoeffs = coeffs;
         nextRowId = 1;
-        const res = await fetch(`/api/upload?inst_height=${encodeURIComponent(instHeight)}`, {
+        const query = new URLSearchParams({
+            inst_height: String(instHeight),
+            coeff_profile: profile,
+        });
+        if (profile === "custom") {
+            query.set("coeff_a", String(coeffs[0]));
+            query.set("coeff_b", String(coeffs[1]));
+            query.set("coeff_c", String(coeffs[2]));
+        }
+        const res = await fetch(`/api/upload?${query.toString()}`, {
             method: "POST",
             body: fd,
         });
@@ -79,7 +146,7 @@ form.addEventListener("submit", async (e) => {
         const payload = await res.json();
         statusEl.textContent = "OK";
         lastGeojson = payload.geojson;
-        prepareGeojson(lastGeojson, instHeight);
+        prepareGeojson(lastGeojson, instHeight, coeffs);
         rebuildReadingIndex(lastGeojson);
         updateMeta(payload);
         renderData(lastGeojson);
@@ -102,17 +169,118 @@ function readInstHeightOrDefault() {
     return v;
 }
 
+function coeffsEqual(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((val, idx) => Math.abs(val - b[idx]) < 1e-9);
+}
+
+function formatCoeffValue(value) {
+    return Number.isFinite(value) ? String(value) : "";
+}
+
+function setCoeffInputs(coeffs) {
+    if (!Array.isArray(coeffs) || coeffs.length < 3) return;
+    if (coeffAInput) coeffAInput.value = formatCoeffValue(coeffs[0]);
+    if (coeffBInput) coeffBInput.value = formatCoeffValue(coeffs[1]);
+    if (coeffCInput) coeffCInput.value = formatCoeffValue(coeffs[2]);
+}
+
+function setCoeffInputsDisabled(disabled) {
+    if (coeffAInput) coeffAInput.disabled = disabled;
+    if (coeffBInput) coeffBInput.disabled = disabled;
+    if (coeffCInput) coeffCInput.disabled = disabled;
+}
+
+function getCoeffProfile() {
+    const profile = coeffProfileSelect?.value || DEFAULT_COEFF_PROFILE;
+    if (profile === "custom") return "custom";
+    if (EM31_COEFF_PRESETS[profile]) return profile;
+    return DEFAULT_COEFF_PROFILE;
+}
+
+function getPresetCoeffs(profile) {
+    return EM31_COEFF_PRESETS[profile]?.coeffs || EM31_COEFF_PRESETS[DEFAULT_COEFF_PROFILE].coeffs;
+}
+
+function readCoeffInputs({ silent = false } = {}) {
+    const a = parseNullableNumber(coeffAInput?.value);
+    const b = parseNullableNumber(coeffBInput?.value);
+    const c = parseNullableNumber(coeffCInput?.value);
+    if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c)) {
+        if (!silent) alert("Coefficients invalides.");
+        return null;
+    }
+    if (a <= 0 || c <= 0) {
+        if (!silent) alert("Coefficients invalides (a et c > 0).");
+        return null;
+    }
+    return [a, b, c];
+}
+
+function readCoeffSelection({ silent = false } = {}) {
+    const profile = getCoeffProfile();
+    if (profile === "custom") {
+        const coeffs = readCoeffInputs({ silent });
+        if (!coeffs) return null;
+        customCoeffs = coeffs;
+        return { profile, coeffs };
+    }
+    return { profile, coeffs: getPresetCoeffs(profile) };
+}
+
+function syncCoeffProfileUI() {
+    if (!coeffProfileSelect) return;
+    const profile = getCoeffProfile();
+    if (coeffProfileSelect.value !== profile) {
+        coeffProfileSelect.value = profile;
+    }
+    if (!Array.isArray(customCoeffs)) {
+        customCoeffs = [...getPresetCoeffs(DEFAULT_COEFF_PROFILE)];
+    }
+    if (profile === "custom") {
+        setCoeffInputs(customCoeffs);
+        setCoeffInputsDisabled(false);
+        return;
+    }
+    setCoeffInputs(getPresetCoeffs(profile));
+    setCoeffInputsDisabled(true);
+}
+
 function deepClone(obj) {
     return JSON.parse(JSON.stringify(obj));
 }
 
-function prepareGeojson(featureCollection, instHeight) {
+function computeBaseThickness(appCond, coeffs) {
+    if (!Array.isArray(coeffs) || coeffs.length < 3) return null;
+    if (typeof appCond !== "number" || !Number.isFinite(appCond)) return null;
+    const [a, b, c] = coeffs;
+    if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c) || a === 0 || c === 0) {
+        return null;
+    }
+    const mod = (appCond - b) / c;
+    if (!(mod > 0)) return null;
+    const ttem = (-1 / a) * Math.log(mod);
+    return Number.isFinite(ttem) ? ttem : null;
+}
+
+function prepareGeojson(featureCollection, instHeight, coeffs) {
     if (!featureCollection || !Array.isArray(featureCollection.features)) return;
     featureCollection.features.forEach((feature) => {
         if (!feature || !feature.properties) return;
         if (feature.properties.kind !== "reading") return;
         if (!feature.properties._row_id) {
             feature.properties._row_id = `r${nextRowId++}`;
+        }
+        const base = computeBaseThickness(feature.properties.conductivity, coeffs);
+        if (typeof base === "number" && Number.isFinite(base)) {
+            feature.properties._base_thickness = base;
+            feature.properties.thickness = base - instHeight;
+            return;
+        }
+        const existingBase = feature.properties._base_thickness;
+        if (typeof existingBase === "number" && Number.isFinite(existingBase)) {
+            feature.properties.thickness = existingBase - instHeight;
+            return;
         }
         const thicknessValue = feature.properties.thickness;
         if (typeof thicknessValue === "number" && Number.isFinite(thicknessValue)) {
@@ -222,6 +390,170 @@ function renderLeaflet(featureCollection, scale, { fitBounds } = {}) {
         fitToBounds(map, featureCollection);
     }
     updateLegend(condStats);
+    setupMeasureTools();
+}
+
+function setupMeasureTools() {
+    if (!window.L || !map) return;
+    ensureMeasureLayer();
+    if (!measureHandlersBound) {
+        map.on("click", handleMeasureMapClick);
+        map.on("zoomend", updateMeasureLabelPosition);
+        map.on("moveend", updateMeasureLabelPosition);
+        measureHandlersBound = true;
+    }
+    if (measureToggleBtn && !measureToggleBound) {
+        measureToggleBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!map) return;
+            setMeasureActive(!measureActive);
+        });
+        measureToggleBound = true;
+    }
+}
+
+function ensureMeasureLayer() {
+    if (!window.L || !map) return;
+    if (!map.getPane("measure")) {
+        const pane = map.createPane("measure");
+        pane.style.zIndex = 650;
+    }
+    if (!measureLayer) {
+        measureLayer = L.layerGroup();
+        measureLayer.addTo(map);
+    }
+}
+
+function setMeasureActive(active) {
+    measureActive = !!active;
+    measureToggleBtn?.classList.toggle("is-active", measureActive);
+    map?.getContainer?.()?.classList.toggle("is-measuring", measureActive);
+    if (!measureActive && measureStart && !measureEnd) {
+        clearMeasure();
+    }
+}
+
+function clearMeasure() {
+    measureStart = null;
+    measureEnd = null;
+    measureMarkers = [];
+    measureLine = null;
+    measureLabel = null;
+    measureLayer?.clearLayers?.();
+}
+
+function handleMeasureMapClick(e) {
+    if (!measureActive || !e?.latlng) return;
+    if (isMapControlClick(e)) return;
+    ensureMeasureLayer();
+    if (measureStart && measureEnd) {
+        clearMeasure();
+    }
+    if (!measureStart) {
+        measureStart = e.latlng;
+        addMeasureMarker(measureStart);
+        return;
+    }
+    if (!measureEnd) {
+        measureEnd = e.latlng;
+        addMeasureMarker(measureEnd);
+        updateMeasureLineAndLabel();
+    }
+}
+
+function isMapControlClick(e) {
+    const target = e?.originalEvent?.target;
+    if (!target || !target.closest) return false;
+    return !!target.closest(".map-controls");
+}
+
+function addMeasureMarker(latlng) {
+    if (!window.L || !measureLayer || !latlng) return;
+    const marker = L.circleMarker(latlng, {
+        radius: 4,
+        color: "#f59e0b",
+        fillColor: "#fbbf24",
+        fillOpacity: 1,
+        weight: 2,
+        pane: "measure",
+        interactive: false,
+    });
+    marker.addTo(measureLayer);
+    measureMarkers.push(marker);
+}
+
+function updateMeasureLineAndLabel() {
+    if (!window.L || !map || !measureStart || !measureEnd) return;
+    const latlngs = [measureStart, measureEnd];
+    if (!measureLine) {
+        measureLine = L.polyline(latlngs, {
+            color: "#f59e0b",
+            weight: 2,
+            dashArray: "6 4",
+            pane: "measure",
+            interactive: false,
+        });
+        measureLine.addTo(measureLayer);
+    } else {
+        measureLine.setLatLngs(latlngs);
+    }
+    const distance = measureStart.distanceTo(measureEnd);
+    const labelLatLng = getMeasureLabelLatLng(measureStart, measureEnd);
+    setMeasureLabel(labelLatLng, formatDistanceMeters(distance));
+}
+
+function updateMeasureLabelPosition() {
+    if (!window.L || !map || !measureStart || !measureEnd || !measureLabel) return;
+    const labelLatLng = getMeasureLabelLatLng(measureStart, measureEnd);
+    measureLabel.setLatLng(labelLatLng);
+}
+
+function getMeasureLabelLatLng(start, end) {
+    if (!window.L || !map) return end;
+    const startPoint = map.latLngToLayerPoint(start);
+    const endPoint = map.latLngToLayerPoint(end);
+    const midPoint = startPoint.add(endPoint).divideBy(2);
+    const labelPoint = midPoint.add(L.point(0, 14));
+    return map.layerPointToLatLng(labelPoint);
+}
+
+function setMeasureLabel(latlng, text) {
+    if (!window.L || !measureLayer || !latlng) return;
+    if (!measureLabel) {
+        const icon = L.divIcon({
+            className: "measure-label",
+            html: text,
+            iconSize: null,
+        });
+        measureLabel = L.marker(latlng, {
+            icon,
+            pane: "measure",
+            interactive: false,
+        });
+        measureLabel.addTo(measureLayer);
+        return;
+    }
+    measureLabel.setLatLng(latlng);
+    const el = measureLabel.getElement?.();
+    if (el) {
+        el.textContent = text;
+    } else {
+        measureLabel.setIcon(
+            L.divIcon({
+                className: "measure-label",
+                html: text,
+                iconSize: null,
+            })
+        );
+    }
+}
+
+function formatDistanceMeters(meters) {
+    if (!Number.isFinite(meters)) return "—";
+    if (meters >= 100) return `${Math.round(meters)} m`;
+    if (meters >= 10) return `${meters.toFixed(1)} m`;
+    return `${meters.toFixed(2)} m`;
 }
 
 function readingPopupHtml(properties) {
@@ -717,6 +1049,16 @@ heightModalEl?.addEventListener("click", (e) => {
     if (e.target === heightModalEl) closeHeightModal();
 });
 
+let lastCoeffProfile = getCoeffProfile();
+coeffProfileSelect?.addEventListener("change", () => {
+    if (lastCoeffProfile === "custom") {
+        const coeffs = readCoeffInputs({ silent: true });
+        if (coeffs) customCoeffs = coeffs;
+    }
+    syncCoeffProfileUI();
+    lastCoeffProfile = getCoeffProfile();
+});
+
 colRangeCheckbox?.addEventListener("change", () => setTabulatorColumnVisible("range", !!colRangeCheckbox.checked));
 colDipoleCheckbox?.addEventListener("change", () => setTabulatorColumnVisible("dipole_mode", !!colDipoleCheckbox.checked));
 colSatCheckbox?.addEventListener("change", () => setTabulatorColumnVisible("gps_satellites", !!colSatCheckbox.checked));
@@ -805,18 +1147,52 @@ function setScaleInputs(scale) {
     }
 }
 
-function applyInstHeight(newHeight) {
-    currentInstHeight = newHeight;
-    if (!lastGeojson) return;
-    (lastGeojson.features || []).forEach((feature) => {
+function updateThicknessFromBase(featureCollection, instHeight) {
+    (featureCollection.features || []).forEach((feature) => {
         if (!feature || !feature.properties || feature.properties.kind !== "reading") return;
         const base = feature.properties._base_thickness;
         if (typeof base !== "number" || !Number.isFinite(base)) {
             feature.properties.thickness = null;
             return;
         }
-        feature.properties.thickness = base - newHeight;
+        feature.properties.thickness = base - instHeight;
     });
+}
+
+function recomputeBaseThickness(featureCollection, instHeight, coeffs) {
+    (featureCollection.features || []).forEach((feature) => {
+        if (!feature || !feature.properties || feature.properties.kind !== "reading") return;
+        const base = computeBaseThickness(feature.properties.conductivity, coeffs);
+        if (typeof base === "number" && Number.isFinite(base)) {
+            feature.properties._base_thickness = base;
+            feature.properties.thickness = base - instHeight;
+            return;
+        }
+        const existingBase = feature.properties._base_thickness;
+        if (typeof existingBase === "number" && Number.isFinite(existingBase)) {
+            feature.properties.thickness = existingBase - instHeight;
+            return;
+        }
+        const thicknessValue = feature.properties.thickness;
+        if (typeof thicknessValue === "number" && Number.isFinite(thicknessValue)) {
+            feature.properties._base_thickness = thicknessValue + instHeight;
+        } else {
+            feature.properties._base_thickness = null;
+            feature.properties.thickness = null;
+        }
+    });
+}
+
+function applyConfig({ instHeight, coeffs }) {
+    const coeffChanged = !coeffsEqual(coeffs, currentCoeffs);
+    currentInstHeight = instHeight;
+    currentCoeffs = coeffs;
+    if (!lastGeojson) return;
+    if (coeffChanged) {
+        recomputeBaseThickness(lastGeojson, instHeight, coeffs);
+    } else {
+        updateThicknessFromBase(lastGeojson, instHeight);
+    }
     rerenderWithScaleOptions({ fitBounds: false });
     fillTable(lastGeojson);
 }
@@ -856,13 +1232,19 @@ document.addEventListener("keydown", (e) => {
 
 instHeightApplyBtn?.addEventListener("click", () => {
     const h = readInstHeightOrDefault();
-    applyInstHeight(h);
+    const coeffSelection = readCoeffSelection();
+    if (!coeffSelection) return;
+    applyConfig({ instHeight: h, coeffs: coeffSelection.coeffs });
     closeHeightModal();
 });
 
 instHeightResetBtn?.addEventListener("click", () => {
     if (instHeightInput) instHeightInput.value = "0.15";
-    applyInstHeight(0.15);
+    if (coeffProfileSelect) coeffProfileSelect.value = DEFAULT_COEFF_PROFILE;
+    customCoeffs = [...getPresetCoeffs(DEFAULT_COEFF_PROFILE)];
+    syncCoeffProfileUI();
+    lastCoeffProfile = getCoeffProfile();
+    applyConfig({ instHeight: 0.15, coeffs: getPresetCoeffs(DEFAULT_COEFF_PROFILE) });
     closeHeightModal();
 });
 
@@ -1003,6 +1385,144 @@ function closeDrillModal() {
     drillModalEl?.classList?.add("is-hidden");
 }
 
+function getDrillFormat() {
+    const mode = drillFormatSelect?.value;
+    return DRILL_FORMATS[mode] ? mode : "decimal";
+}
+
+function applyDrillFormat() {
+    const mode = getDrillFormat();
+    const config = DRILL_FORMATS[mode];
+    if (drillLatInput) {
+        drillLatInput.placeholder = config.latPlaceholder;
+        drillLatInput.setAttribute("inputmode", config.inputMode);
+    }
+    if (drillLonInput) {
+        drillLonInput.placeholder = config.lonPlaceholder;
+        drillLonInput.setAttribute("inputmode", config.inputMode);
+    }
+}
+
+function extractCoordinateParts(value) {
+    const trimmed = String(value ?? "").trim();
+    if (!trimmed) return { numbers: [], hemisphere: null, error: "empty" };
+    const hemiMatches = trimmed.match(/[NSEW]/gi) || [];
+    if (hemiMatches.length > 1) {
+        return { numbers: [], hemisphere: null, error: "hemisphere" };
+    }
+    const hemisphere = hemiMatches.length ? hemiMatches[0].toUpperCase() : null;
+    const cleaned = trimmed
+        .replace(/[NSEW]/gi, " ")
+        .replace(/,/g, ".")
+        .replace(/[^\d.+-]+/g, " ");
+    const parts = cleaned.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return { numbers: [], hemisphere, error: "empty" };
+    const numbers = [];
+    for (const part of parts) {
+        const num = parseNullableNumber(part);
+        if (num === null) {
+            return { numbers: [], hemisphere, error: "invalid" };
+        }
+        numbers.push(num);
+    }
+    return { numbers, hemisphere, error: null };
+}
+
+function applyHemisphereSign(value, hemisphere, label) {
+    if (!hemisphere) return value;
+    const hemiSign = hemisphere === "S" || hemisphere === "W" ? -1 : 1;
+    if (value < 0 && hemiSign > 0) {
+        alert(`${label} invalide (signe + ${hemisphere}).`);
+        return null;
+    }
+    return Math.abs(value) * hemiSign;
+}
+
+function toDecimalDegrees(degrees, minutes, seconds, hemisphere, label) {
+    if (!Number.isFinite(degrees) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) {
+        alert(`${label} invalide.`);
+        return null;
+    }
+    if (minutes < 0 || minutes >= 60) {
+        alert(`${label} invalide (minutes 0-60).`);
+        return null;
+    }
+    if (seconds < 0 || seconds >= 60) {
+        alert(`${label} invalide (secondes 0-60).`);
+        return null;
+    }
+    let sign = degrees < 0 ? -1 : 1;
+    if (hemisphere) {
+        const hemiSign = hemisphere === "S" || hemisphere === "W" ? -1 : 1;
+        if (degrees < 0 && hemiSign > 0) {
+            alert(`${label} invalide (signe + ${hemisphere}).`);
+            return null;
+        }
+        sign = hemiSign;
+    }
+    return sign * (Math.abs(degrees) + minutes / 60 + seconds / 3600);
+}
+
+function parseCoordinateValue(value, { mode, label, hemispheres } = {}) {
+    const parsed = extractCoordinateParts(value);
+    if (parsed.error || !parsed.numbers.length) {
+        alert(`${label} invalide.`);
+        return null;
+    }
+    if (parsed.hemisphere && hemispheres && !hemispheres.includes(parsed.hemisphere)) {
+        alert(`${label} invalide (utiliser ${hemispheres.join("/")}).`);
+        return null;
+    }
+
+    if (mode === "decimal") {
+        if (parsed.numbers.length !== 1) {
+            alert(`${label} invalide (format ${DRILL_FORMATS.decimal.label}).`);
+            return null;
+        }
+        return applyHemisphereSign(parsed.numbers[0], parsed.hemisphere, label);
+    }
+
+    if (mode === "ddm") {
+        if (parsed.numbers.length !== 2) {
+            alert(`${label} invalide (format ${DRILL_FORMATS.ddm.label}).`);
+            return null;
+        }
+        const [deg, min] = parsed.numbers;
+        return toDecimalDegrees(deg, min, 0, parsed.hemisphere, label);
+    }
+
+    if (mode === "dms") {
+        if (parsed.numbers.length < 2 || parsed.numbers.length > 3) {
+            alert(`${label} invalide (format ${DRILL_FORMATS.dms.label}).`);
+            return null;
+        }
+        const [deg, min, sec] = parsed.numbers;
+        return toDecimalDegrees(deg, min, sec ?? 0, parsed.hemisphere, label);
+    }
+
+    alert(`${label} invalide.`);
+    return null;
+}
+
+function readCoordinateFromInput(inputEl, label, { mode, min = null, max = null, hemispheres = null } = {}) {
+    const value = parseCoordinateValue(inputEl?.value, { mode, label, hemispheres });
+    if (value === null) {
+        inputEl?.focus?.();
+        return null;
+    }
+    if (min !== null && value < min) {
+        alert(`${label} invalide (>= ${min}).`);
+        inputEl?.focus?.();
+        return null;
+    }
+    if (max !== null && value > max) {
+        alert(`${label} invalide (<= ${max}).`);
+        inputEl?.focus?.();
+        return null;
+    }
+    return value;
+}
+
 function readRequiredNumber(inputEl, label, { min = null, max = null } = {}) {
     const value = parseNullableNumber(inputEl?.value);
     if (typeof value !== "number") {
@@ -1043,6 +1563,7 @@ function drawDrillingPointsFallback(ctx, project) {
 
 openDrillModalBtn?.addEventListener("click", () => openDrillModal());
 drillModalCloseBtn?.addEventListener("click", () => closeDrillModal());
+drillFormatSelect?.addEventListener("change", applyDrillFormat);
 drillModalEl?.addEventListener("click", (e) => {
     if (e.target === drillModalEl) closeDrillModal();
 });
@@ -1069,9 +1590,20 @@ drillClearBtn?.addEventListener("click", () => {
 
 drillForm?.addEventListener("submit", (e) => {
     e.preventDefault();
-    const lat = readRequiredNumber(drillLatInput, "Latitude", { min: -90, max: 90 });
+    const mode = getDrillFormat();
+    const lat = readCoordinateFromInput(drillLatInput, "Latitude", {
+        mode,
+        min: -90,
+        max: 90,
+        hemispheres: ["N", "S"],
+    });
     if (lat === null) return;
-    const lon = readRequiredNumber(drillLonInput, "Longitude", { min: -180, max: 180 });
+    const lon = readCoordinateFromInput(drillLonInput, "Longitude", {
+        mode,
+        min: -180,
+        max: 180,
+        hemispheres: ["E", "W"],
+    });
     if (lon === null) return;
     const thickness = readRequiredNumber(drillThicknessInput, "Épaisseur", { min: 0 });
     if (thickness === null) return;
@@ -1090,5 +1622,8 @@ drillForm?.addEventListener("submit", (e) => {
     if (drillThicknessInput) drillThicknessInput.value = "";
     drillLatInput?.focus?.();
 });
+
+syncCoeffProfileUI();
+applyDrillFormat();
 
 // Layout is fixed via CSS (no splitters / no dynamic resizing).
